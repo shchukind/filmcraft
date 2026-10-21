@@ -2,6 +2,7 @@
 
 use egui::{Align2, Color32, Rect, Sense, pos2, vec2};
 use filmcraft_time::{TimeDisplay, format_time};
+use serde::{Deserialize, Serialize};
 
 use crate::FilmcraftApp;
 use crate::theme::Tokens;
@@ -57,6 +58,73 @@ pub const MARKER_FILTER: [filmcraft_project::Label; 7] = {
     [Green, Rose, Purple, Mango, Yellow, Blue, Teal]
 };
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MarkerEditorDraft {
+    pub sequence: u64,
+    pub marker: u64,
+    pub name: String,
+    pub comment: String,
+}
+
+pub(crate) fn open_marker_editor(app: &mut FilmcraftApp, marker: &filmcraft_project::Marker) {
+    if let Some(sequence) = app.session.state.active_sequence {
+        app.ui.marker_editor = Some(MarkerEditorDraft {
+            sequence: sequence.0,
+            marker: marker.id.0,
+            name: marker.name.clone(),
+            comment: marker.comment.clone(),
+        });
+    }
+}
+
+pub(crate) fn marker_editor_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {
+    let Some(mut draft) = app.ui.marker_editor.take() else { return };
+    let mut open = true;
+    let mut save = false;
+    let mut cancel = false;
+    egui::Window::new(tl!("Edit Marker…"))
+        .id(egui::Id::new("marker.editor"))
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(true)
+        .pivot(egui::Align2::CENTER_CENTER)
+        .default_width(400.0)
+        .default_pos(crate::widgets::dialog_center(ctx))
+        .show(ctx, |ui| {
+            ui.label(tl!("Name"));
+            let name = ui.add(egui::TextEdit::singleline(&mut draft.name).desired_width(f32::INFINITY));
+            app.auto.add_response("marker.editor.name", &name, "Marker name");
+            ui.add_space(8.0);
+            ui.label(tl!("Comments:"));
+            let comment = ui.add(egui::TextEdit::multiline(&mut draft.comment).desired_width(f32::INFINITY).desired_rows(7));
+            app.auto.add_response("marker.editor.comment", &comment, "Marker comments");
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                let ok = ui.button(tl!("OK"));
+                app.auto.add_response("marker.editor.ok", &ok, "Save marker");
+                save = ok.clicked();
+                let no = ui.button(tl!("Cancel"));
+                app.auto.add_response("marker.editor.cancel", &no, "Cancel marker edit");
+                cancel = no.clicked();
+            });
+        });
+    if save {
+        if app.session.state.active_sequence.map(|id| id.0) != Some(draft.sequence) {
+            app.ui.status = tl!("The marker's sequence is no longer active.").to_owned();
+        } else {
+            match app.session.execute("markers.edit", serde_json::json!({
+                "target": "program", "marker": draft.marker, "name": draft.name.clone(), "comment": draft.comment.clone()
+            })) {
+                Ok(_) => return,
+                Err(error) => app.ui.status = error.to_string(),
+            }
+        }
+    }
+    if open && !cancel && !crate::widgets::escape_closes(ctx) {
+        app.ui.marker_editor = Some(draft);
+    }
+}
+
 /// A marker's Label menu. An explicit program target keeps panel focus and clip/project
 /// selections from routing colour changes to another item (#1143).
 pub(crate) fn marker_label_menu(app: &mut FilmcraftApp, ui: &mut egui::Ui, marker: &filmcraft_project::Marker, prefix: &str) {
@@ -91,6 +159,7 @@ pub fn markers(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let hidden: Vec<[u8; 3]> = app.session.state.hidden_marker_colors.iter().map(|l| l.marker_rgb()).collect();
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect.shrink(6.0)));
     let mut go = None;
+    let mut edit = None;
     let mut toggle = None;
     let mut elems: Vec<(String, Rect, String)> = Vec::new();
     child.horizontal(|ui| {
@@ -116,6 +185,7 @@ pub fn markers(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         for m in seq.markers.iter().filter(|m| !hidden.contains(&m.color.marker_rgb())) {
             shown += 1;
             let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 38.0), Sense::click());
+            let resp = if m.comment.is_empty() { resp } else { resp.on_hover_text(&m.comment) };
             if resp.hovered() {
                 ui.painter().rect_filled(r, 3.0, t.hover);
             }
@@ -136,7 +206,18 @@ pub fn markers(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
             if resp.clicked() {
                 go = Some(m.start);
             }
-            resp.context_menu(|ui| marker_label_menu(app, ui, m, "markers.menu"));
+            if resp.double_clicked() {
+                edit = Some(m.clone());
+            }
+            resp.context_menu(|ui| {
+                let button = ui.button(tl!("Edit Marker…"));
+                app.auto.add_response("markers.menu.edit", &button, "Edit marker name and comment");
+                if button.clicked() {
+                    edit = Some(m.clone());
+                    ui.close();
+                }
+                marker_label_menu(app, ui, m, "markers.menu");
+            });
         }
         if seq.markers.is_empty() {
             ui.label(egui::RichText::new(tl!("No markers. Press M to add one.")).color(t.text_faint));
@@ -154,6 +235,9 @@ pub fn markers(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     }
     if let Some(g) = go {
         app.session.set_playhead(g);
+    }
+    if let Some(marker) = edit {
+        open_marker_editor(app, &marker);
     }
 }
 

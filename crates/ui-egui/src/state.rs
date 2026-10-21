@@ -468,6 +468,9 @@ pub struct UiState {
     pub show_scopes: bool,
     /// Transient status line shown in the footer.
     pub status: String,
+    /// Marker being edited in the name and comment dialog.
+    #[serde(default)]
+    pub marker_editor: Option<crate::panels::misc::MarkerEditorDraft>,
     /// A link the web browser couldn't open, shown with its address until closed
     /// ([`crate::links::show_failed`]).
     #[serde(default)]
@@ -978,6 +981,7 @@ impl Default for UiState {
             dark: true,
             show_scopes: false,
             status: String::new(),
+            marker_editor: None,
             failed_link: None,
             eyedropper: None,
             keyframe_selection: Vec::new(),

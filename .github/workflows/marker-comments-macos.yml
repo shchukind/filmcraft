@@ -1,0 +1,30 @@
+name: Marker comments macOS build
+
+on:
+  push:
+    branches: [codex/marker-comments]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos-dmg:
+    runs-on: macos-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - name: Check formatting and marker UI tests
+        run: |
+          cargo fmt --check
+          cargo test --locked -p filmcraft-ui-egui
+      - name: Build universal DMG
+        run: packaging/macos/package.sh --arch universal
+      - uses: actions/upload-artifact@v4
+        with:
+          name: filmcraft-marker-comments-macos-universal
+          path: dist/release/filmcraft-0.9.0-macos-universal.dmg
+          if-no-files-found: error

@@ -1970,6 +1970,12 @@ fn marker_menu(app: &mut FilmcraftApp, ctx: &egui::Context, ui: &mut egui::Ui, m
         ui.close();
         return;
     };
+    let edit = ui.button(tl!("Edit Marker…"));
+    app.auto.add_response("timeline.markerMenu.edit", &edit, "Edit marker name and comment");
+    if edit.clicked() {
+        super::misc::open_marker_editor(app, &marker);
+        ui.close();
+    }
     super::misc::marker_label_menu(app, ui, &marker, "timeline.markerMenu");
     ui.separator();
     for (label, cmd) in [("Clear Selected Marker", "markers.clearCurrent"), ("Clear Markers", "markers.clearAll")] {
@@ -2726,6 +2732,14 @@ fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &
         } else {
             app.tl.drag = None;
         }
+    }
+
+    // ---- double-click a ruler marker: edit its name and multiline comment
+    if resp.double_clicked()
+        && let Some(p) = resp.interact_pointer_pos()
+        && let Some(marker) = marker_under_pointer(seq, layout, p)
+    {
+        super::misc::open_marker_editor(app, marker);
     }
 
     // ---- double-click a transition: Set Transition Duration (Premiere)
