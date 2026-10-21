@@ -21,6 +21,7 @@ jobs:
         run: |
           cargo fmt --check
           cargo test --locked -p filmcraft-ui-egui
+          cargo test --locked -p filmcraft-engine media_path_under_drive_root_has_one_separator
       - name: Build universal DMG
         run: packaging/macos/package.sh --arch universal
       - uses: actions/upload-artifact@v4

@@ -382,7 +382,20 @@ fn split(path: &str) -> (String, String) {
 }
 
 fn join(dir: &str, name: &str) -> String {
-    if dir.is_empty() { name.to_string() } else { format!("{dir}/{name}") }
+    if dir.is_empty() {
+        name.to_string()
+    } else if dir.ends_with(['/', '\\']) {
+        format!("{dir}{name}")
+    } else {
+        format!("{dir}/{name}")
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn media_path_under_drive_root_has_one_separator() {
+    assert_eq!(join(r"D:\", "Sequence 01 Media"), r"D:\Sequence 01 Media");
+    assert_eq!(join("/", "Sequence 01 Media"), "/Sequence 01 Media");
 }
 
 /// `file.exportAaf`

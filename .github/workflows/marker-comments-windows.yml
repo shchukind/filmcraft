@@ -19,6 +19,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
+      - name: Check AAF media path
+        shell: pwsh
+        run: cargo test --locked -p filmcraft-engine media_path_under_drive_root_has_one_separator
       - name: Install WiX 5
         shell: pwsh
         run: |
