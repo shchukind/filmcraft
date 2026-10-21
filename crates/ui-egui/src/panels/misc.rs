@@ -68,12 +68,8 @@ pub struct MarkerEditorDraft {
 
 pub(crate) fn open_marker_editor(app: &mut FilmcraftApp, marker: &filmcraft_project::Marker) {
     if let Some(sequence) = app.session.state.active_sequence {
-        app.ui.marker_editor = Some(MarkerEditorDraft {
-            sequence: sequence.0,
-            marker: marker.id.0,
-            name: marker.name.clone(),
-            comment: marker.comment.clone(),
-        });
+        app.ui.marker_editor =
+            Some(MarkerEditorDraft { sequence: sequence.0, marker: marker.id.0, name: marker.name.clone(), comment: marker.comment.clone() });
     }
 }
 
@@ -112,9 +108,12 @@ pub(crate) fn marker_editor_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) 
         if app.session.state.active_sequence.map(|id| id.0) != Some(draft.sequence) {
             app.ui.status = tl!("The marker's sequence is no longer active.").to_owned();
         } else {
-            match app.session.execute("markers.edit", serde_json::json!({
-                "target": "program", "marker": draft.marker, "name": draft.name.clone(), "comment": draft.comment.clone()
-            })) {
+            match app.session.execute(
+                "markers.edit",
+                serde_json::json!({
+                    "target": "program", "marker": draft.marker, "name": draft.name.clone(), "comment": draft.comment.clone()
+                }),
+            ) {
                 Ok(_) => return,
                 Err(error) => app.ui.status = error.to_string(),
             }
