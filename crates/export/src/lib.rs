@@ -1352,6 +1352,7 @@ pub fn dnx_profile(name: &str) -> filmcraft_dnx::Profile {
 /// LB/SQ/HQ, 10-bit for HQX).
 struct DnxEncoder {
     enc: filmcraft_dnx::Encoder,
+    info: filmcraft_isobmff::DnxInfo,
     w: u32,
     h: u32,
     rate: FrameRate,
@@ -1362,6 +1363,12 @@ impl VideoEncoder for DnxEncoder {
     fn sample_entry(&self) -> SampleEntry {
         let mut e = SampleEntry::dnx(filmcraft_isobmff::FourCc(*b"AVdh"), self.w as u16, self.h as u16);
         self.signal.apply_to(&mut e, true);
+        if let Some(v) = e.video.as_mut() {
+            v.dnx = Some(self.info);
+            v.vendor = filmcraft_isobmff::FourCc(*b"FFMP");
+            v.temporal_quality = 0x200;
+            v.spatial_quality = 0x200;
+        }
         e
     }
     fn timescale(&self) -> u32 {
@@ -1391,8 +1398,15 @@ fn dnx_factory(format: Format, w: u32, h: u32, rate: FrameRate, s: &ExportSettin
         if s.signal.primaries == 9 {
             cfg.color_volume = filmcraft_dnx::ColorVolume::Bt2020Ncl;
         }
+        let info = filmcraft_isobmff::DnxInfo {
+            cid: cfg.profile.cid(),
+            subsampling: if cfg.profile == filmcraft_dnx::Profile::R444 { 2 } else { 0 },
+            bit_depth: cfg.bit_depth,
+            color_volume: if s.signal.primaries == 9 { 1 } else { 0 },
+            full_range: false,
+        };
         let enc = filmcraft_dnx::Encoder::with_config(cfg).map_err(|e| ExportError::Encode(e.to_string()))?;
-        Ok(Box::new(DnxEncoder { enc, w, h, rate, signal: s.signal }) as Box<dyn VideoEncoder>)
+        Ok(Box::new(DnxEncoder { enc, info, w, h, rate, signal: s.signal }) as Box<dyn VideoEncoder>)
     })
 }
 

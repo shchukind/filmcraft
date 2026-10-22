@@ -58,6 +58,8 @@ fn aaf_embedded_trimmed_audio_round_trips_sample_exact() {
     let (mut s, items, seq, dir) = setup("aaf-embed");
     let path = dir.join("cut.aaf").to_string_lossy().into_owned();
     let r = s.execute("file.exportAaf", json!({"path": path, "audio": "embedded", "trimAudio": true, "handles": 6, "sequence": seq.0})).unwrap();
+    let aaf = std::fs::read(&path).unwrap();
+    assert_eq!(u16::from_le_bytes([aaf[30], aaf[31]]), 9, "default AAF uses 512-byte sectors");
     assert!(r["mediaFiles"].as_array().unwrap().is_empty(), "{r}");
     let r = s.execute("file.import", json!({"paths": [path]})).unwrap();
     let n = imported_seq(&r);

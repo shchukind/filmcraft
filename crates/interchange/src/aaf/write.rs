@@ -41,7 +41,7 @@ fn timestamp() -> Vec<u8> {
     v
 }
 
-fn weak(path: [u16; 3], key: Auid) -> Value {
+fn weak<const N: usize>(path: [u16; N], key: Auid) -> Value {
     Value::Weak(path.to_vec(), pid::IDENTIFICATION, key.to_vec())
 }
 
@@ -141,7 +141,7 @@ pub(crate) fn write(doc: &Document, version: filmcraft_cfb::Version, report: &mu
             tape_slots.push(timeline_slot(
                 1,
                 "TC1",
-                0,
+                1,
                 tcr,
                 Obj::new(cls::TIMECODE)
                     .with(pid::DATA_DEFINITION, weak(path::DATA_DEFS, ddef::TIMECODE))
@@ -302,8 +302,12 @@ pub(crate) fn write(doc: &Document, version: filmcraft_cfb::Version, report: &mu
         opdefs.push(o);
     }
     let pdefs = vec![
-        definition(cls::PARAMETER_DEFINITION, def::PARAM_LEVEL, "Level").data_prop(pid::PARAMDEF_DISPLAY_UNITS, utf16z("")),
-        definition(cls::PARAMETER_DEFINITION, def::PARAM_AMPLITUDE, "Amplitude").data_prop(pid::PARAMDEF_DISPLAY_UNITS, utf16z("")),
+        definition(cls::PARAMETER_DEFINITION, def::PARAM_LEVEL, "Level")
+            .with(pid::PARAMDEF_TYPE, weak(path::TYPE_DEFS, def::TYPE_RATIONAL))
+            .data_prop(pid::PARAMDEF_DISPLAY_UNITS, utf16z("")),
+        definition(cls::PARAMETER_DEFINITION, def::PARAM_AMPLITUDE, "Amplitude")
+            .with(pid::PARAMDEF_TYPE, weak(path::TYPE_DEFS, def::TYPE_RATIONAL))
+            .data_prop(pid::PARAMDEF_DISPLAY_UNITS, utf16z("")),
     ];
     let idefs = if uses_varying || !used_ops.is_empty() {
         vec![
@@ -400,7 +404,7 @@ fn composition_mob(
     slots.push(timeline_slot(
         1,
         "TC1",
-        0,
+        1,
         crate_rate,
         Obj::new(cls::TIMECODE)
             .with(pid::DATA_DEFINITION, weak(path::DATA_DEFS, ddef::TIMECODE))

@@ -152,6 +152,9 @@ fn written_files_have_the_required_structure() {
         let idefs = keys(dict, pid::INTERPOLATION_DEFINITIONS);
         let cdefs = keys(dict, pid::CONTAINER_DEFINITIONS);
         let pdefs = keys(dict, pid::PARAMETER_DEFINITIONS);
+        for parameter in dict.objs(pid::PARAMETER_DEFINITIONS) {
+            assert_eq!(parameter.weak_key(pid::PARAMDEF_TYPE), Some(def::TYPE_RATIONAL.as_slice()));
+        }
         let content = header.strong(pid::CONTENT).unwrap();
         let mobs = content.objs(pid::MOBS);
         let mob_ids: Vec<[u8; 32]> = mobs.iter().map(|m| m.mob_id(pid::MOB_ID).unwrap()).collect();
@@ -160,6 +163,7 @@ fn written_files_have_the_required_structure() {
         let comps: Vec<&Obj> = mobs.iter().filter(|m| m.class == cls::COMPOSITION_MOB).collect();
         assert_eq!(comps.len(), 1);
         assert_eq!(comps[0].auid(pid::USAGE_CODE), Some(def::USAGE_TOP_LEVEL));
+        assert_eq!(comps[0].objs(pid::SLOTS)[0].u32(pid::PHYSICAL_TRACK_NUMBER), Some(1), "primary timecode track number");
         assert_eq!(mobs.iter().filter(|m| m.class == cls::MASTER_MOB).count(), 1);
         assert_eq!(mobs.iter().filter(|m| m.class == cls::SOURCE_MOB).count(), 3, "picture file, sound file, tape");
         for m in mobs {

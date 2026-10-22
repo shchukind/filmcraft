@@ -35,6 +35,8 @@ pub struct VideoParams {
     pub temporal_quality: u32,
     pub spatial_quality: u32,
     pub color: Option<ColorInfo>,
+    /// Avid DNxHR sample-description metadata (`ACLR` and `ADHR`).
+    pub dnx: Option<DnxInfo>,
     /// `pasp`: (hSpacing, vSpacing).
     pub pixel_aspect: Option<(u32, u32)>,
     pub clean_aperture: Option<CleanAperture>,
@@ -45,6 +47,19 @@ pub struct VideoParams {
     pub mastering_display: Option<MasteringDisplay>,
     /// `clli`: content light level (MaxCLL, MaxFALL in cd/m²; 0 = unknown).
     pub content_light: Option<(u16, u16)>,
+}
+
+/// Metadata required by Avid's DNxHR QuickTime sample description.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DnxInfo {
+    pub cid: u32,
+    /// 0 = 4:2:2, 1 = 4:2:0, 2 = 4:4:4.
+    pub subsampling: u32,
+    /// Coded depth (8, 10, or 12 bits), rather than input frame depth.
+    pub bit_depth: u8,
+    /// 0 = BT.709, 1 = BT.2020 NCL, 2 = BT.2020 CL, 3 = out of band.
+    pub color_volume: u16,
+    pub full_range: bool,
 }
 
 /// SMPTE ST 2086 mastering display metadata, in the units of the `mdcv` box and the H.264/HEVC
@@ -943,6 +958,7 @@ pub(crate) fn parse_sample_entry(format: FourCc, payload: &[u8], handler: FourCc
         let _ctab = c.i16()?;
         let mut codec = None;
         let mut bitrate = None;
+        let mut dnx_range = None;
         for b in boxes(c.rest()).map_while(|b| b.ok()) {
             let p = b.payload;
             match &b.kind.0 {
@@ -951,6 +967,19 @@ pub(crate) fn parse_sample_entry(format: FourCc, payload: &[u8], handler: FourCc
                 b"av1C" if f == b"av01" => codec = Some(CodecConfig::Av1(Av1Config::parse(p)?)),
                 b"vpcC" if f == b"vp09" => codec = Some(CodecConfig::Vp9(VpcConfig::parse(p)?)),
                 b"apvC" if f == b"apv1" => codec = Some(CodecConfig::Apv(ApvConfig::parse(p)?)),
+                b"ACLR" if matches!(f, b"AVdn" | b"AVdh") && p.len() >= 16 => {
+                    dnx_range = Some(u32::from_be_bytes([p[8], p[9], p[10], p[11]]) == 2);
+                }
+                b"ADHR" if matches!(f, b"AVdn" | b"AVdh") && p.len() >= 24 => {
+                    let word = |i: usize| u32::from_be_bytes([p[i], p[i + 1], p[i + 2], p[i + 3]]);
+                    v.dnx = Some(DnxInfo {
+                        cid: word(4),
+                        subsampling: word(8),
+                        bit_depth: match word(12) { 1 => 8, 2 => 10, 3 => 12, _ => 0 },
+                        color_volume: u16::from_be_bytes([p[18], p[19]]),
+                        full_range: false,
+                    });
+                }
                 b"colr" => v.color = parse_colr(p).ok(),
                 b"mdcv" => v.mastering_display = MasteringDisplay::parse(p),
                 b"clli" if p.len() >= 4 => v.content_light = Some((u16::from_be_bytes([p[0], p[1]]), u16::from_be_bytes([p[2], p[3]]))),
@@ -975,6 +1004,9 @@ pub(crate) fn parse_sample_entry(format: FourCc, payload: &[u8], handler: FourCc
                 b"btrt" => bitrate = Some(parse_btrt(p)?),
                 _ => {}
             }
+        }
+        if let Some(dnx) = v.dnx.as_mut() {
+            dnx.full_range = dnx_range.unwrap_or(false);
         }
         let codec = match codec {
             Some(c) => c,
@@ -1394,6 +1426,24 @@ impl SampleEntry {
                 CodecConfig::Apv(c) => b.leaf(b"apvC", &c.to_bytes()),
                 _ => {}
             }
+            if let Some(dnx) = v.dnx {
+                let m = b.start(b"ACLR");
+                b.bytes(b"ACLR0001");
+                b.u32(if dnx.full_range { 2 } else { 1 });
+                b.u32(0);
+                b.end(m);
+
+                let m = b.start(b"ADHR");
+                b.bytes(b"0001");
+                b.u32(dnx.cid);
+                b.u32(dnx.subsampling);
+                b.u32(match dnx.bit_depth { 8 => 1, 10 => 2, 12 => 3, _ => 0 });
+                b.u16(0); // YCbCr colour format.
+                b.u16(dnx.color_volume);
+                b.u16(0); // No alpha channel.
+                b.u16(0); // No premultiplied alpha.
+                b.end(m);
+            }
             if let Some(g) = v.gamma {
                 b.leaf(b"gama", &g.to_be_bytes());
             }
@@ -1582,6 +1632,23 @@ mod tests {
         e.write(&mut b, qt).unwrap();
         let bx = crate::bytes::boxes(&b.buf).next().unwrap().unwrap();
         parse_sample_entry(bx.kind, bx.payload, FourCc(*handler), qt).unwrap()
+    }
+
+    #[test]
+    fn dnxhr_writes_avid_sample_description() {
+        let mut entry = SampleEntry::dnx(FourCc(*b"AVdh"), 1280, 720);
+        entry.video.as_mut().unwrap().dnx = Some(DnxInfo {
+            cid: 1272,
+            subsampling: 0,
+            bit_depth: 8,
+            color_volume: 0,
+            full_range: false,
+        });
+        let mut b = BoxBuf::new();
+        entry.write(&mut b, true).unwrap();
+        assert!(b.buf.windows(24).any(|bytes| bytes == b"\0\0\0\x18ACLRACLR0001\0\0\0\x01\0\0\0\0"));
+        assert!(b.buf.windows(32).any(|bytes| bytes == b"\0\0\0\x20ADHR0001\0\0\x04\xf8\0\0\0\0\0\0\0\x01\0\0\0\0\0\0\0\0"));
+        assert_eq!(roundtrip(&entry, true, b"vide"), entry);
     }
 
     #[test]

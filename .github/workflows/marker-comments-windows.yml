@@ -21,7 +21,10 @@ jobs:
           targets: x86_64-pc-windows-msvc
       - name: Check AAF media path
         shell: pwsh
-        run: cargo test --locked -p filmcraft-engine media_path_under_drive_root_has_one_separator
+        run: |
+          cargo test --locked -p filmcraft-engine media_path_under_drive_root_has_one_separator
+          cargo test --locked -p filmcraft-interchange written_files_have_the_required_structure
+          cargo test --locked -p filmcraft-isobmff dnxhr_writes_avid_sample_description
       - name: Install WiX 5
         shell: pwsh
         run: |

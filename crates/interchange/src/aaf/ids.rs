@@ -122,6 +122,7 @@ pub(crate) mod pid {
     pub const OPDEF_NUMBER_INPUTS: u16 = 0x1E07;
     pub const OPDEF_PARAMETERS_DEFINED: u16 = 0x1E09;
     // ParameterDefinition
+    pub const PARAMDEF_TYPE: u16 = 0x1F01;
     pub const PARAMDEF_DISPLAY_UNITS: u16 = 0x1F03;
     // Mob
     pub const MOB_ID: u16 = 0x4401;
@@ -250,6 +251,7 @@ pub(crate) mod def {
 /// Weak reference target paths (pids from the root object).
 pub(crate) mod path {
     use super::pid;
+    pub const TYPE_DEFS: [u16; 2] = [pid::ROOT_META_DICTIONARY, pid::META_TYPE_DEFINITIONS];
     pub const DATA_DEFS: [u16; 3] = [pid::ROOT_HEADER, pid::DICTIONARY, pid::DATA_DEFINITIONS];
     pub const OPERATION_DEFS: [u16; 3] = [pid::ROOT_HEADER, pid::DICTIONARY, pid::OPERATION_DEFINITIONS];
     pub const PARAMETER_DEFS: [u16; 3] = [pid::ROOT_HEADER, pid::DICTIONARY, pid::PARAMETER_DEFINITIONS];
