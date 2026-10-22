@@ -1365,9 +1365,13 @@ impl VideoEncoder for DnxEncoder {
         self.signal.apply_to(&mut e, true);
         if let Some(v) = e.video.as_mut() {
             v.dnx = Some(self.info);
-            v.vendor = filmcraft_isobmff::FourCc(*b"FFMP");
-            v.temporal_quality = 0x200;
-            v.spatial_quality = 0x200;
+            if v.color.is_none() {
+                v.color = Some(filmcraft_isobmff::ColorInfo::Nclc {
+                    primaries: self.signal.primaries as u16,
+                    transfer: self.signal.transfer as u16,
+                    matrix: self.signal.matrix as u16,
+                });
+            }
         }
         e
     }
