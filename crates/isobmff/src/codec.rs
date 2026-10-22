@@ -975,7 +975,12 @@ pub(crate) fn parse_sample_entry(format: FourCc, payload: &[u8], handler: FourCc
                     v.dnx = Some(DnxInfo {
                         cid: word(4),
                         subsampling: word(8),
-                        bit_depth: match word(12) { 1 => 8, 2 => 10, 3 => 12, _ => 0 },
+                        bit_depth: match word(12) {
+                            1 => 8,
+                            2 => 10,
+                            3 => 12,
+                            _ => 0,
+                        },
                         color_volume: u16::from_be_bytes([p[18], p[19]]),
                         full_range: false,
                     });
@@ -1437,7 +1442,12 @@ impl SampleEntry {
                 b.bytes(b"0001");
                 b.u32(dnx.cid);
                 b.u32(dnx.subsampling);
-                b.u32(match dnx.bit_depth { 8 => 1, 10 => 2, 12 => 3, _ => 0 });
+                b.u32(match dnx.bit_depth {
+                    8 => 1,
+                    10 => 2,
+                    12 => 3,
+                    _ => 0,
+                });
                 b.u16(0); // YCbCr colour format.
                 b.u16(dnx.color_volume);
                 b.u16(0); // No alpha channel.
@@ -1637,13 +1647,7 @@ mod tests {
     #[test]
     fn dnxhr_writes_avid_sample_description() {
         let mut entry = SampleEntry::dnx(FourCc(*b"AVdh"), 1280, 720);
-        entry.video.as_mut().unwrap().dnx = Some(DnxInfo {
-            cid: 1272,
-            subsampling: 0,
-            bit_depth: 8,
-            color_volume: 0,
-            full_range: false,
-        });
+        entry.video.as_mut().unwrap().dnx = Some(DnxInfo { cid: 1272, subsampling: 0, bit_depth: 8, color_volume: 0, full_range: false });
         let mut b = BoxBuf::new();
         entry.write(&mut b, true).unwrap();
         assert!(b.buf.windows(24).any(|bytes| bytes == b"\0\0\0\x18ACLRACLR0001\0\0\0\x01\0\0\0\0"));
